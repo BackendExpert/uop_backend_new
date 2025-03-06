@@ -1,6 +1,6 @@
 <?php 
 
-    require_once '../db.php';
+    require_once '../config.php';
     require_once '../vendor/autoload.php';
     use Firebase\JWT\JWT;
     use Firebase\JWT\Key;
@@ -16,8 +16,8 @@
     }
 
     function generateJWT($payload) {
-        $payload['iat'] = time(); // Issued at
-        $payload['exp'] = time() + TOKEN_EXPIRY; // Expiry
+        $payload['iat'] = time();
+        $payload['exp'] = time() + TOKEN_EXPIRY; 
         return JWT::encode($payload, JWT_SECRET, JWT_ALGO);
     }
 
@@ -30,6 +30,38 @@
         if (empty($email) || empty($password)) {
             return ['status' => 'error', 'message' => 'Email and password are required.'];
         }
+
+        $stmt = $conn->prepare("SELECT * FROM users WHERE email = :email");
+        $stmt->execute(['email' => $email]);
+
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($user && password_verify($password, $user['password'])) {
+            if($user['is_active'] === 0){
+                return [
+                    'status' => 'error',
+                    'message' => 'Account is not activated by Admin'
+                ];
+            }
+            else{
+                $token = generateJWT($user);
+
+                return [
+                    'status' => 'success',
+                    'message' => 'Login successful.',
+                    'user' => $user,
+                    'token' => $token
+                ];
+            }
+        }
+
+        else {
+            return [
+                'status' => 'error',
+                'message' => 'Invalid email or password.'
+            ];
+        }
+
     }
 
     function signupuser($data){
